@@ -1,0 +1,75 @@
+#include <Wire.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_SSD1306.h>
+#include <ESP32Servo.h>  // Use ESP32Servo instead of Servo
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET    -1  // No reset pin on the display
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+Adafruit_MPU6050 mpu;
+Servo servo;  // Define servo using ESP32Servo
+
+const int servoPin = 18;
+
+void setup() {
+  // Initialize Serial Monitor
+  Serial.begin(115200);
+  while (!Serial) delay(10);  // Wait for Serial monitor to open
+
+  // Initialize I2C for OLED and MPU6050
+  Wire.begin(21, 20);  // SDA on GPIO 21, SCL on GPIO 20
+
+  // Initialize MPU6050
+  if (!mpu.begin()) {
+    Serial.println("Failed to find MPU6050 chip");
+    while (1) {
+      delay(10);
+    }
+  }
+
+  mpu.setAccelerometerRange(MPU6050_RANGE_2_G);
+  mpu.setGyroRange(MPU6050_RANGE_250_DEG);
+  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+
+  // Initialize OLED display
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for (;;);
+  }
+  display.display();
+  delay(4000);  // Pause for 2 seconds
+
+  // Initialize the servo
+  servo.attach(servoPin);  // Use ESP32Servo's attach method
+  servo.write(90);  // Start at the middle position
+
+  // Clear display buffer
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+}
+
+void loop() {
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+
+  // Calculate the angle of inclination from accelerometer data
+  float angle = atan2(a.acceleration.y, a.acceleration.x) * (180.0 / PI);
+
+  // Display the angle on the OLED
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.print("Angle: ");
+  display.print(angle);
+  display.println(" deg");
+  display.display();
+
+  // Map the angle to servo range
+  int servoAngle = map(angle, -90, 90, 0, 180);
+  servo.write(servoAngle);
+
+  delay(100);
+}
